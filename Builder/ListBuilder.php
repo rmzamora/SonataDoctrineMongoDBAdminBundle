@@ -17,7 +17,6 @@ use Sonata\AdminBundle\Admin\AdminInterface;
 use Sonata\AdminBundle\Admin\FieldDescriptionCollection;
 use Sonata\AdminBundle\Builder\ListBuilderInterface;
 use Sonata\AdminBundle\Guesser\TypeGuesserInterface;
-use Sonata\DoctrineMongoDBAdminBundle\Admin\FieldDescription;
 
 use Doctrine\ODM\MongoDB\Mapping\ClassMetadataInfo;
 
@@ -28,7 +27,7 @@ class ListBuilder implements ListBuilderInterface
 
     /**
      * @param \Sonata\AdminBundle\Guesser\TypeGuesserInterface $guesser
-     * @param array $templates
+     * @param array                                            $templates
      */
     public function __construct(TypeGuesserInterface $guesser, array $templates)
     {
@@ -41,7 +40,21 @@ class ListBuilder implements ListBuilderInterface
         return new FieldDescriptionCollection;
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function addField(FieldDescriptionCollection $list, $type = null, FieldDescriptionInterface $fieldDescription, AdminInterface $admin)
+    {
+        $this->buildField($type, $fieldDescription, $admin);
+        $admin->addListFieldDescription($fieldDescription->getName(), $fieldDescription);
+
+        return $list->add($fieldDescription);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function buildField($type = null, FieldDescriptionInterface $fieldDescription, AdminInterface $admin)
     {
         if ($type == null) {
             $guessType = $this->guesser->guessType($admin->getClass(), $fieldDescription->getName(), $admin->getModelManager());
@@ -51,9 +64,6 @@ class ListBuilder implements ListBuilderInterface
         }
 
         $this->fixFieldDescription($admin, $fieldDescription);
-        $admin->addListFieldDescription($fieldDescription->getName(), $fieldDescription);
-
-        return $list->add($fieldDescription);
     }
 
     /**
@@ -72,8 +82,8 @@ class ListBuilder implements ListBuilderInterface
     /**
      * The method defines the correct default settings for the provided FieldDescription
      *
-     * @param \Sonata\AdminBundle\Admin\AdminInterface $admin
-     * @param \Sonata\AdminBundle\Admin\FieldDescriptionInterface $fieldDescription
+     * @param  \Sonata\AdminBundle\Admin\AdminInterface            $admin
+     * @param  \Sonata\AdminBundle\Admin\FieldDescriptionInterface $fieldDescription
      * @return void
      */
     public function fixFieldDescription(AdminInterface $admin, FieldDescriptionInterface $fieldDescription)
@@ -85,17 +95,22 @@ class ListBuilder implements ListBuilderInterface
         $fieldDescription->setAdmin($admin);
 
         if ($admin->getModelManager()->hasMetadata($admin->getClass())) {
-            $metadata = $admin->getModelManager()->getMetadata($admin->getClass());
+            list($metadata, $lastPropertyName, $parentAssociationMappings) = $admin->getModelManager()->getParentMetadataForProperty($admin->getClass(), $fieldDescription->getName());
+            $fieldDescription->setParentAssociationMappings($parentAssociationMappings);
 
             // set the default field mapping
-            if (isset($metadata->fieldMappings[$fieldDescription->getName()])) {
-                $fieldDescription->setFieldMapping($metadata->fieldMappings[$fieldDescription->getName()]);
+            if (isset($metadata->fieldMappings[$lastPropertyName])) {
+                $fieldDescription->setFieldMapping($metadata->fieldMappings[$lastPropertyName]);
                 if ($fieldDescription->getOption('sortable') !== false) {
-                    $fieldDescription->setOption('sortable', $fieldDescription->getOption('sortable', $fieldDescription->getName()));
+                    $fieldDescription->setOption('sortable', $fieldDescription->getOption('sortable', true));
+                    $fieldDescription->setOption('sort_parent_association_mappings', $fieldDescription->getOption('sort_parent_association_mappings', $fieldDescription->getParentAssociationMappings()));
+                    $fieldDescription->setOption('sort_field_mapping', $fieldDescription->getOption('sort_field_mapping', $fieldDescription->getFieldMapping()));
                 }
 
                 // set the default association mapping
-                $fieldDescription->setAssociationMapping($metadata->fieldMappings[$fieldDescription->getName()]);
+                if ($metadata->hasAssociation($lastPropertyName)) {
+                  $fieldDescription->setAssociationMapping($metadata->fieldMappings[$lastPropertyName]);
+                }
             }
 
             $fieldDescription->setOption('_sort_order', $fieldDescription->getOption('_sort_order', 'ASC'));
@@ -118,13 +133,17 @@ class ListBuilder implements ListBuilderInterface
                 $fieldDescription->setType('integer');
             }
 
-            $fieldDescription->setTemplate($this->getTemplate($fieldDescription->getType()));
+            $template = $this->getTemplate($fieldDescription->getType());
 
-            if ($fieldDescription->getMappingType() == ClassMetadataInfo::ONE) {
-                $fieldDescription->setTemplate('SonataDoctrineMongoDBAdminBundle:CRUD:list_mongo_one.html.twig');
-            } elseif ($fieldDescription->getMappingType() == ClassMetadataInfo::MANY) {
-                $fieldDescription->setTemplate('SonataDoctrineMongoDBAdminBundle:CRUD:list_mongo_many.html.twig');
+            if ($template === null) {
+                if ($fieldDescription->getMappingType() == ClassMetadataInfo::ONE) {
+                    $template = 'SonataDoctrineMongoDBAdminBundle:CRUD:list_mongo_one.html.twig';
+                } elseif ($fieldDescription->getMappingType() == ClassMetadataInfo::MANY) {
+                    $template = 'SonataDoctrineMongoDBAdminBundle:CRUD:list_mongo_many.html.twig';
+                }
             }
+
+            $fieldDescription->setTemplate($template);
         }
 
         if (in_array($fieldDescription->getMappingType(), array(ClassMetadataInfo::ONE, ClassMetadataInfo::MANY))) {
@@ -133,7 +152,7 @@ class ListBuilder implements ListBuilderInterface
     }
 
     /**
-     * @param \Sonata\AdminBundle\Admin\FieldDescriptionInterface $fieldDescription
+     * @param  \Sonata\AdminBundle\Admin\FieldDescriptionInterface $fieldDescription
      * @return \Sonata\AdminBundle\Admin\FieldDescriptionInterface
      */
     public function buildActionFieldDescription(FieldDescriptionInterface $fieldDescription)

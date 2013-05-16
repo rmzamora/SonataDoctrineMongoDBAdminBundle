@@ -10,12 +10,9 @@
  */
 
 namespace Sonata\DoctrineMongoDBAdminBundle\DependencyInjection\Compiler;
-
-use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\Reference;
-use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /*
  *
@@ -31,7 +28,7 @@ class AddGuesserCompilerPass implements CompilerPassInterface
         // ListBuilder
         $definition = $container->getDefinition('sonata.admin.guesser.doctrine_mongodb_list_chain');
         $services = array();
-        foreach($container->findTaggedServiceIds('sonata.admin.guesser.doctrine_mongodb_list') as $id => $attributes) {
+        foreach ($container->findTaggedServiceIds('sonata.admin.guesser.doctrine_mongodb_list') as $id => $attributes) {
             $services[] = new Reference($id);
         }
 
@@ -40,7 +37,7 @@ class AddGuesserCompilerPass implements CompilerPassInterface
         // ListBuilder
         $definition = $container->getDefinition('sonata.admin.guesser.doctrine_mongodb_datagrid_chain');
         $services = array();
-        foreach($container->findTaggedServiceIds('sonata.admin.guesser.doctrine_mongodb_datagrid') as $id => $attributes) {
+        foreach ($container->findTaggedServiceIds('sonata.admin.guesser.doctrine_mongodb_datagrid') as $id => $attributes) {
             $services[] = new Reference($id);
         }
 
@@ -49,7 +46,7 @@ class AddGuesserCompilerPass implements CompilerPassInterface
         // ShowBuilder
         $definition = $container->getDefinition('sonata.admin.guesser.doctrine_mongodb_show_chain');
         $services = array();
-        foreach($container->findTaggedServiceIds('sonata.admin.guesser.doctrine_mongodb_show') as $id => $attributes) {
+        foreach ($container->findTaggedServiceIds('sonata.admin.guesser.doctrine_mongodb_show') as $id => $attributes) {
             $services[] = new Reference($id);
         }
 

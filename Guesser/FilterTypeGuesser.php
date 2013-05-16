@@ -13,7 +13,6 @@
 namespace Sonata\DoctrineMongoDBAdminBundle\Guesser;
 
 use Sonata\AdminBundle\Model\ModelManagerInterface;
-use Sonata\AdminBundle\Guesser\TypeGuesserInterface;
 use Symfony\Component\Form\Guess\Guess;
 use Symfony\Component\Form\Guess\TypeGuess;
 
@@ -22,8 +21,8 @@ use Doctrine\ODM\MongoDB\Mapping\ClassMetadataInfo;
 class FilterTypeGuesser extends AbstractTypeGuesser
 {
     /**
-     * @param string $class
-     * @param string $property
+     * @param  string    $class
+     * @param  string    $property
      * @return TypeGuess
      */
     public function guessType($class, $property, ModelManagerInterface $modelManager)
@@ -40,9 +39,8 @@ class FilterTypeGuesser extends AbstractTypeGuesser
 
         list($metadata, $propertyName, $parentAssociationMappings) = $ret;
 
-        $mapping = $metadata->getFieldMapping($property);
         if ($metadata->hasAssociation($propertyName)) {
-            $multiple = $metadata->isCollectionValuedAssociation($propertyName);
+            $mapping = $metadata->getFieldMapping($propertyName);
 
             switch ($mapping['type']) {
                 case ClassMetadataInfo::ONE:
@@ -64,10 +62,9 @@ class FilterTypeGuesser extends AbstractTypeGuesser
             }
         }
 
+        $options['field_name'] = $propertyName;
 
-        $options['field_name'] = $mapping['fieldName'];
-
-        switch ($mapping['type']) {
+        switch ($metadata->getTypeOfField($propertyName)) {
             case 'boolean':
                 $options['field_type'] = 'sonata_type_boolean';
                 $options['field_options'] = array();
@@ -86,9 +83,6 @@ class FilterTypeGuesser extends AbstractTypeGuesser
             case 'bigint':
             case 'smallint':
                 $options['field_type'] = 'number';
-                $options['field_options'] = array(
-                    'csrf_protection' => false
-                );
 
                 return new TypeGuess('doctrine_mongo_number', $options, Guess::MEDIUM_CONFIDENCE);
             case 'id':

@@ -12,7 +12,6 @@
 
 namespace Sonata\DoctrineMongoDBAdminBundle\Datagrid;
 
-use Doctrine\ODM\MongoDB\Query;
 use Doctrine\ODM\MongoDB\Query\Builder;
 use Sonata\AdminBundle\Datagrid\ProxyQueryInterface;
 
@@ -36,8 +35,8 @@ class ProxyQuery implements ProxyQueryInterface
     }
 
     /**
-     * @param array $params
-     * @param null $hydrationMode
+     * @param  array $params
+     * @param  null  $hydrationMode
      * @return mixed
      */
     public function execute(array $params = array(), $hydrationMode = null)
@@ -61,8 +60,7 @@ class ProxyQuery implements ProxyQueryInterface
 
     public function setSortBy($parentAssociationMappings, $fieldMapping)
     {
-        $alias        = $this->entityJoin($parentAssociationMappings);
-        $this->sortBy = $alias . '.' . $fieldMapping['fieldName'];
+        $this->sortBy = $fieldMapping['fieldName'];
     }
 
     public function getSortBy()
@@ -97,24 +95,24 @@ class ProxyQuery implements ProxyQueryInterface
         return $this->queryBuilder;
     }
 
-    function setFirstResult($firstResult)
+    public function setFirstResult($firstResult)
     {
         $this->firstResult = $firstResult;
         $this->queryBuilder->skip($firstResult);
     }
 
-    function getFirstResult()
+    public function getFirstResult()
     {
         return $this->firstResult;
     }
 
-    function setMaxResults($maxResults)
+    public function setMaxResults($maxResults)
     {
         $this->maxResults = $maxResults;
         $this->queryBuilder->limit($maxResults);
     }
 
-    function getMaxResults()
+    public function getMaxResults()
     {
         return $this->maxResults;
     }
@@ -122,7 +120,7 @@ class ProxyQuery implements ProxyQueryInterface
     /**
      * @return mixed
      */
-    function getUniqueParameterId()
+    public function getUniqueParameterId()
     {
         // TODO: Implement getUniqueParameterId() method.
     }
@@ -132,7 +130,7 @@ class ProxyQuery implements ProxyQueryInterface
      *
      * @return mixed
      */
-    function entityJoin(array $associationMappings)
+    public function entityJoin(array $associationMappings)
     {
         // TODO: Implement entityJoin() method.
     }

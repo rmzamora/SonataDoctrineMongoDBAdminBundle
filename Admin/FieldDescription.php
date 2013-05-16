@@ -18,10 +18,15 @@ use Sonata\AdminBundle\Admin\BaseFieldDescription;
 class FieldDescription extends BaseFieldDescription
 {
     /**
-     * Define the association mapping definition
-     *
-     * @param array $associationMapping
-     * @return void
+     * {@inheritdoc}
+     */
+    public function __construct()
+    {
+        $this->parentAssociationMappings = array();
+    }
+
+    /**
+     * {@inheritdoc}
      */
     public function setAssociationMapping($associationMapping)
     {
@@ -42,14 +47,12 @@ class FieldDescription extends BaseFieldDescription
                     break;
             }
         }
-        
+
         $this->fieldName = $associationMapping['fieldName'];
     }
 
     /**
-     * return the related Target Entity
-     *
-     * @return string|null
+     * {@inheritdoc}
      */
     public function getTargetEntity()
     {
@@ -61,10 +64,7 @@ class FieldDescription extends BaseFieldDescription
     }
 
     /**
-     * set the field mapping information
-     *
-     * @param array $fieldMapping
-     * @return void
+     * {@inheritdoc}
      */
     public function setFieldMapping($fieldMapping)
     {
@@ -80,32 +80,8 @@ class FieldDescription extends BaseFieldDescription
     }
 
     /**
-     * return true if the FieldDescription is linked to an identifier field
-     *
-     * @return bool
+     * {@inheritdoc}
      */
-    public function isIdentifier()
-    {
-        return isset($this->fieldMapping['id']) ? $this->fieldMapping['id'] : false;
-    }
-
-    /**
-     * return the value linked to the description
-     *
-     * @param  $object
-     * @return bool|mixed
-     */
-    public function getValue($object)
-    {
-        if($this->parentAssociationMappings) {
-            foreach ($this->parentAssociationMappings as $parentAssociationMapping) {
-                $object = $this->getFieldValue($object, $parentAssociationMapping['fieldName']);
-            }
-        }
-
-        return $this->getFieldValue($object, $this->fieldName);
-    }
-
     public function setParentAssociationMappings(array $parentAssociationMappings)
     {
         foreach ($parentAssociationMappings as $parentAssociationMapping) {
@@ -117,4 +93,25 @@ class FieldDescription extends BaseFieldDescription
         $this->parentAssociationMappings = $parentAssociationMappings;
     }
 
+    /**
+     * {@inheritdoc}
+     */
+    public function isIdentifier()
+    {
+        return isset($this->fieldMapping['id']) ? $this->fieldMapping['id'] : false;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getValue($object)
+    {
+        if ($this->parentAssociationMappings) {
+            foreach ($this->parentAssociationMappings as $parentAssociationMapping) {
+                $object = $this->getFieldValue($object, $parentAssociationMapping['fieldName']);
+            }
+        }
+
+        return $this->getFieldValue($object, $this->fieldName);
+    }
 }

@@ -1,13 +1,11 @@
-Doctrine MongoDb Admin
+Doctrine MongoDB Admin
 ======================
 
-*NOT STABLE*
+[![Build Status](https://travis-ci.org/sonata-project/SonataDoctrineMongoDBAdminBundle.png?branch=master)](https://travis-ci.org/sonata-project/SonataDoctrineMongoDBAdminBundle)
 
-This bundle integrates the SonataAdminBundle with the Doctrine MongoDB project.
+This bundle integrates the SonataAdminBundle with the Doctrine MongoDB ODM project.
 
-The online documentation of the bundle is in http://sonata-project.org/bundles/doctrine-mongodb-admin
-
-For contribution to the documentation you cand find it on ``Resources/doc``.
+For contribution to the documentation you cand find it on [Resources/doc](https://github.com/sonata-project/SonataDoctrineMongoDBAdminBundle/tree/master/Resources/doc).
 
 **Warning**: documentation files are not rendering correctly in Github (reStructuredText format)
 and some content might be broken or hidden, make sure to read raw files.

@@ -4,6 +4,7 @@
  * This file is part of the Sonata package.
  *
  * (c) Thomas Rabaix <thomas.rabaix@sonata-project.org>
+ * (c) Kévin Dunglas <dunglas@gmail.com>
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -11,20 +12,17 @@
 
 namespace Sonata\DoctrineMongoDBAdminBundle\Filter;
 
-use Doctrine\ORM\Mapping\ClassMetadataInfo;
-use Sonata\AdminBundle\Form\Type\BooleanType;
+use Sonata\AdminBundle\Form\Type\EqualType;
 use Sonata\AdminBundle\Datagrid\ProxyQueryInterface;
+use Doctrine\Common\Collections\Collection;
 
-/**
- * @todo Support multiple values and Document with non-default strategy for ID
- */
 class ModelFilter extends Filter
 {
     /**
-     * @param QueryBuilder $queryBuilder
-     * @param string $alias
-     * @param string $field
-     * @param mixed $data
+     * @param ProxyQueryInterface $queryBuilder
+     * @param string              $alias
+     * @param string              $field
+     * @param mixed               $data
      * @return
      */
     public function filter(ProxyQueryInterface $queryBuilder, $alias, $field, $data)
@@ -32,6 +30,12 @@ class ModelFilter extends Filter
         if (!$data || !is_array($data) || !array_key_exists('value', $data)) {
             return;
         }
+
+        if ($data['value'] instanceof Collection) {
+            $data['value'] = $data['value']->toArray();
+        }
+
+        $field = $this->getIdentifierField($field);
 
         if (is_array($data['value'])) {
             $this->handleMultiple($queryBuilder, $alias, $field, $data);
@@ -42,41 +46,79 @@ class ModelFilter extends Filter
 
     /**
      *
-     * @param $queryBuilder
-     * @param type $alias
-     * @param type $field
-     * @param type $data
+     * @param  ProxyQueryInterface $queryBuilder
+     * @param  type                $alias
+     * @param  type                $field
+     * @param  type                $data
      * @return type
      */
-    protected function handleMultiple($queryBuilder, $alias, $field, $data)
+    protected function handleMultiple(ProxyQueryInterface $queryBuilder, $alias, $field, $data)
     {
         if (count($data['value']) == 0) {
             return;
         }
 
-        $ids = array_map(function($id) {
-            return new \MongoId($id);
-        }, $data['value']);
-
-        if (isset($data['type']) && $data['type'] == BooleanType::TYPE_NO) {
-            $queryBuilder->field($field . '._id')->notIn($ids);
-        } else {
-            $queryBuilder->field($field . '._id')->in($ids);
+        $ids = array();
+        foreach ($data['value'] as $value) {
+            $ids[] = self::fixIdentifier($value->getId());
         }
+
+        if (isset($data['type']) && $data['type'] == EqualType::TYPE_IS_NOT_EQUAL) {
+            $queryBuilder->field($field)->notIn($ids);
+        } else {
+            $queryBuilder->field($field)->in($ids);
+        }
+
+        $this->active = true;
     }
 
-    protected function handleScalar($queryBuilder, $alias, $field, $data)
+    /**
+     *
+     * @param  ProxyQueryInterface $queryBuilder
+     * @param  type                $alias
+     * @param  type                $field
+     * @param  type                $data
+     * @return type
+     */
+    protected function handleScalar(ProxyQueryInterface $queryBuilder, $alias, $field, $data)
     {
-
         if (empty($data['value'])) {
             return;
         }
 
-        if (isset($data['type']) && $data['type'] == BooleanType::TYPE_NO) {
-            $queryBuilder->field($field . '.id')->notEqual(new \MongoId($data['value']));
+        $id = self::fixIdentifier($data['value']->getId());
+
+        if (isset($data['type']) && $data['type'] == EqualType::TYPE_IS_NOT_EQUAL) {
+            $queryBuilder->field($field)->notEqual($id);
         } else {
-            $queryBuilder->field($field . '.id')->equals(new \MongoId($data['value']));
+            $queryBuilder->field($field)->equals($id);
         }
+
+        $this->active = true;
+    }
+
+    /**
+     * Return \MongoId if $id is MongoId in string representation, otherwise custom string
+     *
+     * @param  type     $id
+     * @return Ambigous <\MongoId, string>
+     */
+    protected static function fixIdentifier($id)
+    {
+        return ($id == new \MongoId($id)) ? new \MongoId($id) : $id;
+    }
+
+    /**
+     * Identifier field name is 'field' if mapping type is simple; otherwise, it's 'field.$id'
+     *
+     * @param  string $field
+     * @return string
+     */
+    protected function getIdentifierField($field)
+    {
+        $field_mapping = $this->getFieldMapping();
+
+        return (true === $field_mapping['simple']) ? $field : $field . '.$id';
     }
 
     public function getDefaultOptions()
@@ -86,7 +128,7 @@ class ModelFilter extends Filter
             'field_name'   => false,
             'field_type'   => 'document',
             'field_options' => array(),
-            'operator_type' => 'sonata_type_boolean',
+            'operator_type' => 'sonata_type_equal',
             'operator_options' => array(),
         );
     }
@@ -102,13 +144,4 @@ class ModelFilter extends Filter
         ));
     }
 
-    public function filterDump(AssetInterface $asset)
-    {
-        throw new \Exception('Not yet implemented');
-    }
-
-    public function filterLoad(AssetInterface $asset)
-    {
-        throw new \Exception('Not yet implemented');
-    }
 }

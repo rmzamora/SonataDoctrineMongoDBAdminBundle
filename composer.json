@@ -2,30 +2,37 @@
     "name": "sonata-project/doctrine-mongodb-admin-bundle",
     "type": "symfony-bundle",
     "description": "Symfony Sonata / Integrate Doctrine MongoDB ODM into the SonataAdminBundle",
-    "keywords": ["Admin Generator", "admin", "sonata", "bootstrap", "Mongo"],
+    "keywords": ["Admin Generator", "admin", "sonata", "bootstrap", "generator", "Mongo", "MongoDB"],
     "homepage": "http://sonata-project.org/bundles/admin",
     "license": "MIT",
     "authors": [
         {
-            "name": "Thomas Rabaix",
-            "email": "thomas.rabaix@sonata-project.org"
+            "name": "Kévin Dunglas",
+            "email": "dunglas@gmail.com",
+            "homepage": "http://dunglas.fr"
         },
         {
             "name": "Sonata Community",
-            "homepage": "https://github.com/sonata-project/SonataAdminBundle/contributors"
+            "homepage": "https://github.com/sonata-project/SonataDoctrineMongoDBAdminBundle/contributors"
         }
     ],
     "require": {
-        "php": ">=5.3.2",
-        "sonata-project/admin-bundle": "*",
-        "symfony/framework-bundle": "2.*",
-        "symfony/security-bundle": "2.*",
-        "symfony/mongodb-odm-bundle": "2.*",
-        "doctrine/mongodb": "dev-master",
-        "doctrine/mongodb-odm": "dev-master"
+        "doctrine/mongodb-odm-bundle": "3.0.*@dev",
+        "doctrine/mongodb-odm": "1.0.*@dev",
+        "sonata-project/admin-bundle": "2.2.*@dev",
+        "sonata-project/block-bundle": "2.2.*@dev",
+        "symfony/symfony": ">=2.2,<2.3",
+        "knplabs/knp-menu-bundle": "~1.1"
     },
     "autoload": {
-        "psr-0": { "Sonata\\DoctrineMongoDBAdminBundle": "" }
+        "psr-0": {"Sonata\\DoctrineMongoDBAdminBundle": ""}
     },
-    "target-dir": "Sonata/DoctrineMongoDBAdminBundle"
+    "target-dir": "Sonata/DoctrineMongoDBAdminBundle",
+    "extra": {
+        "branch-alias": {
+            "dev-2.0": "2.0.x-dev",
+            "dev-2.1": "2.1.x-dev",
+            "dev-master": "2.2.x-dev"
+        }
+    }
 }

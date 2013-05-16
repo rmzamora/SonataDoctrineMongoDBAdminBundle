@@ -35,8 +35,8 @@ class FormContractor implements FormContractorInterface
     /**
      * The method defines the correct default settings for the provided FieldDescription
      *
-     * @param \Sonata\AdminBundle\Admin\AdminInterface $admin
-     * @param \Sonata\AdminBundle\Admin\FieldDescriptionInterface $fieldDescription
+     * @param  \Sonata\AdminBundle\Admin\AdminInterface            $admin
+     * @param  \Sonata\AdminBundle\Admin\FieldDescriptionInterface $fieldDescription
      * @return void
      */
     public function fixFieldDescription(AdminInterface $admin, FieldDescriptionInterface $fieldDescription)
@@ -47,9 +47,11 @@ class FormContractor implements FormContractorInterface
             // set the default field mapping
             if (isset($metadata->fieldMappings[$fieldDescription->getName()])) {
                 $fieldDescription->setFieldMapping($metadata->fieldMappings[$fieldDescription->getName()]);
+            }
 
-                // set the default association mapping
-                $fieldDescription->setAssociationMapping($metadata->fieldMappings[$fieldDescription->getName()]);
+            // set the default association mapping
+            if (isset($metadata->associationMappings[$fieldDescription->getName()])) {
+              $fieldDescription->setAssociationMapping($metadata->associationMappings[$fieldDescription->getName()]);
             }
         }
 
@@ -74,67 +76,59 @@ class FormContractor implements FormContractorInterface
     }
 
     /**
-     * @param string $name
-     * @param array $options
+     * @param  string                              $name
+     * @param  array                               $options
      * @return \Symfony\Component\Form\FormBuilder
      */
     public function getFormBuilder($name, array $options = array())
     {
-        return $this->getFormFactory()->createNamedBuilder('form', $name, null, $options);
+        return $this->getFormFactory()->createNamedBuilder($name, 'form', null, $options);
     }
 
     /**
      * @param $type
-     * @param \Sonata\AdminBundle\Admin\FieldDescriptionInterface $fieldDescription
+     * @param  \Sonata\AdminBundle\Admin\FieldDescriptionInterface $fieldDescription
      * @return array
      */
     public function getDefaultOptions($type, FieldDescriptionInterface $fieldDescription)
     {
-        $options = array();
-        $options['sonata_field_description'] = $fieldDescription;
+      $options                             = array();
+      $options['sonata_field_description'] = $fieldDescription;
 
-        if ($type == 'sonata_type_model') {
-            $options['class'] = $fieldDescription->getTargetEntity();
-            $options['model_manager'] = $fieldDescription->getAdmin()->getModelManager();
+      if ($type == 'sonata_type_model' || $type == 'sonata_type_model_list') {
 
-            switch ($fieldDescription->getMappingType()) {
-                case ClassMetadataInfo::ONE:
-                    break;
-                case ClassMetadataInfo::MANY:
-                    $options['multiple'] = true;
-                    $options['parent'] = 'choice';
-                    break;
-            }
-
-            if ($fieldDescription->getOption('edit') == 'list') {
-                $options['parent'] = 'text';
-
-                if (!array_key_exists('required', $options)) {
-                    $options['required'] = false;
-                }
-            }
-        } else if ($type == 'sonata_type_admin') {
-
-            if (!$fieldDescription->getAssociationAdmin()) {
-                throw new \RuntimeException(sprintf('The current field `%s` is not linked to an admin. Please create one for the target entity : `%s`', $fieldDescription->getName(), $fieldDescription->getTargetEntity()));
-            }
-        } else if ($type == 'sonata_type_collection') {
-
-            throw new \RuntimeException('Type "sonata_type_collection" is not yet implemented.');
-
-            if (!$fieldDescription->getAssociationAdmin()) {
-                throw new \RuntimeException(sprintf('The current field `%s` is not linked to an admin. Please create one for the target entity : `%s`', $fieldDescription->getName(), $fieldDescription->getTargetEntity()));
-            }
-
-            $options['type'] = 'sonata_type_admin';
-            $options['modifiable'] = true;
-            $options['type_options'] = array(
-                'sonata_field_description' => $fieldDescription,
-                'data_class' => $fieldDescription->getAssociationAdmin()->getClass()
-            );
+        if ($fieldDescription->getOption('edit') == 'list') {
+          throw new \LogicException('The ``sonata_type_model`` type does not accept an ``edit`` option anymore, please review the UPGRADE-2.1.md file from the SonataAdminBundle');
         }
 
-        return $options;
+        $options['class']         = $fieldDescription->getTargetEntity();
+        $options['model_manager'] = $fieldDescription->getAdmin()->getModelManager();
+
+      } elseif ($type == 'sonata_type_admin') {
+
+        if (!$fieldDescription->getAssociationAdmin()) {
+          throw new \RuntimeException(sprintf('The current field `%s` is not linked to an admin. Please create one for the target entity : `%s`', $fieldDescription->getName(), $fieldDescription->getTargetEntity()));
+        }
+
+        $options['data_class'] = $fieldDescription->getAssociationAdmin()->getClass();
+        $fieldDescription->setOption('edit', $fieldDescription->getOption('edit', 'admin'));
+
+      } elseif ($type == 'sonata_type_collection') {
+
+        if (!$fieldDescription->getAssociationAdmin()) {
+          throw new \RuntimeException(sprintf('The current field `%s` is not linked to an admin. Please create one for the target entity : `%s`', $fieldDescription->getName(), $fieldDescription->getTargetEntity()));
+        }
+
+        $options['type']         = 'sonata_type_admin';
+        $options['modifiable']   = true;
+        $options['type_options'] = array(
+            'sonata_field_description' => $fieldDescription,
+            'data_class'               => $fieldDescription->getAssociationAdmin()->getClass()
+        );
+
+      }
+
+      return $options;
     }
 
 }

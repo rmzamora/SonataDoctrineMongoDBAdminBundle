@@ -12,19 +12,16 @@
 
 namespace Sonata\DoctrineMongoDBAdminBundle\Guesser;
 
-use Sonata\AdminBundle\Guesser\TypeGuesserInterface;
 use Sonata\AdminBundle\Model\ModelManagerInterface;
 use Symfony\Component\Form\Guess\Guess;
 use Symfony\Component\Form\Guess\TypeGuess;
 use Doctrine\ODM\MongoDB\Mapping\ClassMetadataInfo;
-use Doctrine\ODM\MongoDB\MongoDBException;
-
 
 class TypeGuesser extends AbstractTypeGuesser
 {
     /**
-     * @param string $class
-     * @param string $property
+     * @param  string    $class
+     * @param  string    $property
      * @return TypeGuess
      */
     public function guessType($class, $property, ModelManagerInterface $modelManager)
@@ -35,16 +32,15 @@ class TypeGuesser extends AbstractTypeGuesser
 
         list($metadata, $propertyName, $parentAssociationMappings) = $ret;
 
-        $mapping = $metadata->getFieldMapping($property);
         if ($metadata->hasAssociation($propertyName)) {
-            $multiple = $metadata->isCollectionValuedAssociation($propertyName);
+            $mapping = $metadata->getFieldMapping($propertyName);
 
             switch ($mapping['type']) {
                 case ClassMetadataInfo::ONE:
-                    return new TypeGuess('orm_one_to_many', array(), Guess::HIGH_CONFIDENCE);
+                    return new TypeGuess('mongo_one', array(), Guess::HIGH_CONFIDENCE);
 
                 case ClassMetadataInfo::MANY:
-                    return new TypeGuess('orm_many_to_many', array(), Guess::HIGH_CONFIDENCE);
+                    return new TypeGuess('mongo_many', array(), Guess::HIGH_CONFIDENCE);
 
                 /* case ClassMetadataInfo::MANY_TO_ONE:
                   return new TypeGuess('orm_many_to_one', array(), Guess::HIGH_CONFIDENCE);
@@ -54,11 +50,13 @@ class TypeGuesser extends AbstractTypeGuesser
             }
         }
 
-        switch ($mapping['type']) {
-            //case 'array':
-            //  return new TypeGuess('Collection', array(), Guess::HIGH_CONFIDENCE);
+        switch ($metadata->getTypeOfField($propertyName)) {
+            case 'collection':
+            case 'hash':
+            case 'array':
+              return new TypeGuess('array', array(), Guess::HIGH_CONFIDENCE);
             case 'boolean':
-                return new TypeGuess('checkbox', array(), Guess::HIGH_CONFIDENCE);
+                return new TypeGuess('boolean', array(), Guess::HIGH_CONFIDENCE);
             case 'datetime':
             case 'vardatetime':
             case 'datetimetz':

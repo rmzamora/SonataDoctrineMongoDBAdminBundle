@@ -13,14 +13,18 @@
 namespace Sonata\DoctrineMongoDBAdminBundle\Model;
 
 use Sonata\DoctrineMongoDBAdminBundle\Admin\FieldDescription;
+use Sonata\DoctrineMongoDBAdminBundle\Datagrid\ProxyQuery;
+
 use Sonata\AdminBundle\Model\ModelManagerInterface;
 use Sonata\AdminBundle\Admin\FieldDescriptionInterface;
 use Sonata\AdminBundle\Datagrid\DatagridInterface;
 use Sonata\AdminBundle\Datagrid\ProxyQueryInterface;
 use Doctrine\ODM\MongoDB\DocumentManager;
 use Doctrine\ODM\MongoDB\Query\Builder;
-use Doctrine\Common\Collections\ArrayCollection;
+
 use Symfony\Component\Form\Exception\PropertyAccessDeniedException;
+
+use Exporter\Source\DoctrineODMQuerySourceIterator;
 
 class ModelManager implements ModelManagerInterface
 {
@@ -36,11 +40,7 @@ class ModelManager implements ModelManagerInterface
     }
 
     /**
-     * Returns the related model's metadata
-     *
-     * @abstract
-     * @param string $name
-     * @return \Doctrine\ORM\Mapping\ClassMetadataInfo
+     * {@inheritdoc}
      */
     public function getMetadata($class)
     {
@@ -51,11 +51,11 @@ class ModelManager implements ModelManagerInterface
      * Returns the model's metadata holding the fully qualified property, and the last
      * property name
      *
-     * @param string $baseClass The base class of the model holding the fully qualified property.
+     * @param string $baseClass        The base class of the model holding the fully qualified property.
      * @param string $propertyFullName The name of the fully qualified property (dot ('.') separated
      * property string)
      * @return array(
-     *     \Doctrine\ORM\Mapping\ClassMetadata $parentMetadata,
+     *     \Doctrine\ODM\MongoDB\Mapping\ClassMetadata $parentMetadata,
      *     string $lastPropertyName,
      *     array $parentAssociationMappings
      * )
@@ -67,20 +67,17 @@ class ModelManager implements ModelManagerInterface
         $class = $baseClass;
         $parentAssociationMappings = array();
 
-        foreach($nameElements as $nameElement){
+        foreach ($nameElements as $nameElement) {
             $metadata = $this->getMetadata($class);
-            $parentAssociationMappings[] = $metadata->associationMappings[$nameElement];
-            $class = $metadata->getAssociationTargetClass($nameElement);
+            $parentAssociationMappings[] = $metadata->fieldMappings[$nameElement];
+            $class = $metadata->fieldMappings[$nameElement]['targetDocument'];
         }
 
         return array($this->getMetadata($class), $lastPropertyName, $parentAssociationMappings);
     }
 
     /**
-     * Returns true is the model has some metadata
-     *
-     * @param $class
-     * @return boolean
+     * {@inheritdoc}
      */
     public function hasMetadata($class)
     {
@@ -88,13 +85,7 @@ class ModelManager implements ModelManagerInterface
     }
 
     /**
-     * Returns a new FieldDescription
-     *
-     * @throws \RunTimeException
-     * @param $class
-     * @param $name
-     * @param array $options
-     * @return \Sonata\AdminBundle\Admin\ORM\FieldDescription
+     * {@inheritdoc}
      */
     public function getNewFieldDescriptionInstance($class, $name, array $options = array())
     {
@@ -102,35 +93,43 @@ class ModelManager implements ModelManagerInterface
             throw new \RunTimeException('The name argument must be a string');
         }
 
-        $metadata = $this->getMetadata($class);
+        list($metadata, $propertyName, $parentAssociationMappings) = $this->getParentMetadataForProperty($class, $name);
 
         $fieldDescription = new FieldDescription;
         $fieldDescription->setName($name);
         $fieldDescription->setOptions($options);
+        $fieldDescription->setParentAssociationMappings($parentAssociationMappings);
 
-        if (isset($metadata->fieldMappings[$name]['reference'])) {
-            $fieldDescription->setAssociationMapping($metadata->fieldMappings[$name]);
-        }
-
-        if (isset($metadata->fieldMappings[$name])) {
-            $fieldDescription->setFieldMapping($metadata->fieldMappings[$name]);
+        if ($metadata->hasAssociation($propertyName)) {
+            $fieldDescription->setAssociationMapping($metadata->fieldMappings[$propertyName]);
+        } elseif (isset($metadata->fieldMappings[$propertyName])) {
+            $fieldDescription->setFieldMapping($metadata->fieldMappings[$propertyName]);
         }
 
         return $fieldDescription;
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function create($object)
     {
         $this->documentManager->persist($object);
         $this->documentManager->flush();
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function update($object)
     {
         $this->documentManager->persist($object);
         $this->documentManager->flush();
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function delete($object)
     {
         $this->documentManager->remove($object);
@@ -138,25 +137,24 @@ class ModelManager implements ModelManagerInterface
     }
 
     /**
-     * Find one object from the given class repository.
-     *
-     * @param string $class Class name
-     * @param string|int $id Identifier. Can be a string with several IDs concatenated, separated by '-'.
-     * @return Object
+     * {@inheritdoc}
      */
     public function find($class, $id)
     {
         if (is_numeric($id)) {
-            $id = intval($id);
+
+            $value = $this->documentManager->getRepository($class)->find(intval($id));
+
+            if (!empty($value)) {
+                return $value;
+            }
         }
 
         return $this->documentManager->getRepository($class)->find($id);
     }
 
     /**
-     * @param $class
-     * @param array $criteria
-     * @return array
+     * {@inheritdoc}
      */
     public function findBy($class, array $criteria = array())
     {
@@ -164,9 +162,7 @@ class ModelManager implements ModelManagerInterface
     }
 
     /**
-     * @param $class
-     * @param array $criteria
-     * @return array
+     * {@inheritdoc}
      */
     public function findOneBy($class, array $criteria = array())
     {
@@ -174,7 +170,7 @@ class ModelManager implements ModelManagerInterface
     }
 
     /**
-     * @return \Doctrine\ORM\EntityManager
+     * @return DocumentManager
      */
     public function getEntityManager()
     {
@@ -182,9 +178,7 @@ class ModelManager implements ModelManagerInterface
     }
 
     /**
-     * @param string $parentAssociationMapping
-     * @param string $class
-     * @return \Sonata\AdminBundle\Admin\ORM\FieldDescription
+     * {@inheritdoc}
      */
     public function getParentFieldDescription($parentAssociationMapping, $class)
     {
@@ -202,24 +196,21 @@ class ModelManager implements ModelManagerInterface
     }
 
     /**
-     * @param $class
-     * @param string $alias
-     * @return \Doctrine\ORM\QueryBuilder
+     * {@inheritdoc}
      */
     public function createQuery($class, $alias = 'o')
     {
         $repository = $this->getEntityManager()->getRepository($class);
 
-        return $repository->createQueryBuilder($alias);
+        return new ProxyQuery($repository->createQueryBuilder());
     }
 
     /**
-     * @param $query
-     * @return mixed
+     * {@inheritdoc}
      */
     public function executeQuery($query)
     {
-        if ($query instanceof QueryBuilder) {
+        if ($query instanceof Builder) {
             return $query->getQuery()->execute();
         }
 
@@ -227,8 +218,7 @@ class ModelManager implements ModelManagerInterface
     }
 
     /**
-     * @param string $class
-     * @return string
+     * {@inheritdoc}
      */
     public function getModelIdentifier($class)
     {
@@ -236,9 +226,7 @@ class ModelManager implements ModelManagerInterface
     }
 
     /**
-     * @throws \RuntimeException
-     * @param $entity
-     * @return
+     * {@inheritdoc}
      */
     public function getIdentifierValues($document)
     {
@@ -246,8 +234,7 @@ class ModelManager implements ModelManagerInterface
     }
 
     /**
-     * @param $class
-     * @return mixed
+     * {@inheritdoc}
      */
     public function getIdentifierFieldNames($class)
     {
@@ -255,9 +242,7 @@ class ModelManager implements ModelManagerInterface
     }
 
     /**
-     * @throws \RunTimeException
-     * @param $entity
-     * @return null|string
+     * {@inheritdoc}
      */
     public function getNormalizedIdentifier($document)
     {
@@ -276,10 +261,15 @@ class ModelManager implements ModelManagerInterface
     }
 
     /**
-     * @param $class
-     * @param \Sonata\AdminBundle\Datagrid\ProxyQueryInterface $queryProxy
-     * @param array $idx
-     * @return void
+     * {@inheritDoc}
+     */
+    public function getUrlsafeIdentifier($entity)
+    {
+        return $this->getNormalizedIdentifier($entity);
+    }
+
+    /**
+     * {@inheritdoc}
      */
     public function addIdentifiersToQuery($class, ProxyQueryInterface $queryProxy, array $idx)
     {
@@ -288,11 +278,7 @@ class ModelManager implements ModelManagerInterface
     }
 
     /**
-     * Deletes a set of $class identified by the provided $idx array
-     *
-     * @param $class
-     * @param \Sonata\AdminBundle\Datagrid\ProxyQueryInterface $queryProxy
-     * @return void
+     * {@inheritdoc}
      */
     public function batchDelete($class, ProxyQueryInterface $queryProxy)
     {
@@ -303,9 +289,31 @@ class ModelManager implements ModelManagerInterface
     }
 
     /**
-     * Returns a new model instance
-     * @param string $class
-     * @return
+     * {@inheritdoc}
+     */
+    public function getDataSourceIterator(DatagridInterface $datagrid, array $fields, $firstResult = null, $maxResult = null)
+    {
+        $datagrid->buildPager();
+        $query = $datagrid->getQuery();
+
+        $query->setFirstResult($firstResult);
+        $query->setMaxResults($maxResult);
+
+        return new DoctrineODMQuerySourceIterator($query instanceof ProxyQuery ? $query->getQuery() : $query, $fields);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getExportFields($class)
+    {
+        $metadata = $this->getEntityManager($class)->getClassMetadata($class);
+
+        return $metadata->getFieldNames();
+    }
+
+    /**
+     * {@inheritdoc}
      */
     public function getModelInstance($class)
     {
@@ -313,22 +321,19 @@ class ModelManager implements ModelManagerInterface
     }
 
     /**
-     * Returns the parameters used in the columns header
-     *
-     * @param \Sonata\AdminBundle\Admin\FieldDescriptionInterface $fieldDescription
-     * @param \Sonata\AdminBundle\Datagrid\DatagridInterface $datagrid
-     * @return array
+     * {@inheritdoc}
      */
     public function getSortParameters(FieldDescriptionInterface $fieldDescription, DatagridInterface $datagrid)
     {
         $values = $datagrid->getValues();
 
-        if ($fieldDescription->getOption('sortable') == $values['_sort_by']) {
+        if ($fieldDescription->getOption('sortable') == $values['_sort_by']->getName()) {
             if ($values['_sort_order'] == 'ASC') {
                 $values['_sort_order'] = 'DESC';
             } else {
                 $values['_sort_order'] = 'ASC';
             }
+            $values['_sort_by']    = $fieldDescription->getName();
         } else {
             $values['_sort_order'] = 'ASC';
             $values['_sort_by'] = $fieldDescription->getOption('sortable');
@@ -338,9 +343,7 @@ class ModelManager implements ModelManagerInterface
     }
 
     /**
-     * @param \Sonata\AdminBundle\Datagrid\DatagridInterface $datagrid
-     * @param $page
-     * @return array
+     * {@inheritdoc}
      */
     public function getPaginationParameters(DatagridInterface $datagrid, $page)
     {
@@ -352,8 +355,7 @@ class ModelManager implements ModelManagerInterface
     }
 
     /**
-     * @param sring $class
-     * @return array
+     * {@inheritdoc}
      */
     public function getDefaultSortValues($class)
     {
@@ -365,9 +367,7 @@ class ModelManager implements ModelManagerInterface
     }
 
     /**
-     * @param string $class
-     * @param object $instance
-     * @return mixed
+     * {@inheritdoc}
      */
     public function modelTransform($class, $instance)
     {
@@ -375,9 +375,7 @@ class ModelManager implements ModelManagerInterface
     }
 
     /**
-     * @param string $class
-     * @param array $array
-     * @return object
+     * {@inheritdoc}
      */
     public function modelReverseTransform($class, array $array = array())
     {
@@ -393,7 +391,7 @@ class ModelManager implements ModelManagerInterface
 
                 $property = $metadata->fieldMappings[$name]['fieldName'];
                 $reflection_property = $metadata->reflFields[$name];
-            } else if (array_key_exists($name, $metadata->associationMappings)) {
+            } elseif (array_key_exists($name, $metadata->associationMappings)) {
                 $property = $metadata->associationMappings[$name]['fieldName'];
             } else {
                 $property = $name;
@@ -407,16 +405,16 @@ class ModelManager implements ModelManagerInterface
                 }
 
                 $instance->$setter($value);
-            } else if ($reflClass->hasMethod('__set')) {
+            } elseif ($reflClass->hasMethod('__set')) {
                 // needed to support magic method __set
                 $instance->$property = $value;
-            } else if ($reflClass->hasProperty($property)) {
+            } elseif ($reflClass->hasProperty($property)) {
                 if (!$reflClass->getProperty($property)->isPublic()) {
                     throw new PropertyAccessDeniedException(sprintf('Property "%s" is not public in class "%s". Maybe you should create the method "set%s()"?', $property, $reflClass->getName(), ucfirst($property)));
                 }
 
                 $instance->$property = $value;
-            } else if ($reflection_property) {
+            } elseif ($reflection_property) {
                 $reflection_property->setValue($instance, $value);
             }
         }
@@ -425,38 +423,10 @@ class ModelManager implements ModelManagerInterface
     }
 
     /**
-     * @param string $class
-     * @return \Doctrine\Common\Collections\ArrayCollection
-     */
-    public function getModelCollectionInstance($class)
-    {
-        return new ArrayCollection();
-    }
-
-    public function collectionClear(&$collection)
-    {
-        return $collection->clear();
-    }
-
-    public function collectionHasElement(&$collection, &$element)
-    {
-        return $collection->contains($element);
-    }
-
-    public function collectionAddElement(&$collection, &$element)
-    {
-        return $collection->add($element);
-    }
-
-    public function collectionRemoveElement(&$collection, &$element)
-    {
-        return $collection->removeElement($element);
-    }
-
-    /**
      * method taken from PropertyPath
      *
-     * @param  $property
+     * @param string $property
+     *
      * @return mixed
      */
     protected function camelize($property)
@@ -464,13 +434,43 @@ class ModelManager implements ModelManagerInterface
         return preg_replace(array('/(^|_)+(.)/e', '/\.(.)/e'), array("strtoupper('\\2')", "'_'.strtoupper('\\1')"), $property);
     }
 
-    public function getDataSourceIterator(DatagridInterface $datagrid, array $fields, $firstResult = null, $maxResult = null)
+    /**
+     * {@inheritdoc}
+     */
+    public function getModelCollectionInstance($class)
     {
-        throw new \Exception('Not yet implemented.');
+        return new \Doctrine\Common\Collections\ArrayCollection();
     }
 
-    public function getExportFields($class)
+    /**
+     * {@inheritdoc}
+     */
+    public function collectionClear(&$collection)
     {
-        throw new \Exception('Not yet implemented.');
+        return $collection->clear();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function collectionHasElement(&$collection, &$element)
+    {
+        return $collection->contains($element);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function collectionAddElement(&$collection, &$element)
+    {
+        return $collection->add($element);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function collectionRemoveElement(&$collection, &$element)
+    {
+        return $collection->removeElement($element);
     }
 }
