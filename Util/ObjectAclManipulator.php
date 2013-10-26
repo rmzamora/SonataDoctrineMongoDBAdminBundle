@@ -21,11 +21,6 @@ use Sonata\AdminBundle\Security\Handler\AclSecurityHandlerInterface;
 use Sonata\AdminBundle\Admin\AdminInterface;
 use Sonata\AdminBundle\Util\ObjectAclManipulator as BaseObjectAclManipulator;
 
-/**
- * ObjectAclManipulator for MongoDB databases.
- *
- * @author  Joris van de Sande <joris.van.de.sande@freshheads.com>
- */
 class ObjectAclManipulator extends BaseObjectAclManipulator
 {
     /**
@@ -54,10 +49,11 @@ class ObjectAclManipulator extends BaseObjectAclManipulator
         try {
             $batchSize = 20;
             $batchSizeOutput = 200;
-            $oids = array();
+            $objectIds = array();
 
             foreach ($qb->getQuery()->iterate() as $row) {
-                $oids[] = ObjectIdentity::fromDomainObject($row);
+                $objectIds[]      = ObjectIdentity::fromDomainObject($row);
+                $objectIdIterator = new \ArrayIterator($objectIds);
 
                 // detach from Doctrine, so that it can be Garbage-Collected immediately
                 $om->detach($row);
@@ -65,10 +61,10 @@ class ObjectAclManipulator extends BaseObjectAclManipulator
                 $count++;
 
                 if (($count % $batchSize) == 0) {
-                    list($batchAdded, $batchUpdated) = $this->configureAcls($output, $admin, $oids, $securityIdentity);
+                    list($batchAdded, $batchUpdated) = $this->configureAcls($output, $admin, $objectIdIterator, $securityIdentity);
                     $countAdded += $batchAdded;
                     $countUpdated += $batchUpdated;
-                    $oids = array();
+                    $objectIds = array();
                 }
 
                 if (($count % $batchSizeOutput) == 0) {
@@ -76,8 +72,8 @@ class ObjectAclManipulator extends BaseObjectAclManipulator
                 }
             }
 
-            if (count($oids) > 0) {
-                list($batchAdded, $batchUpdated) = $this->configureAcls($output, $admin, $oids, $securityIdentity);
+            if (count($objectIds) > 0) {
+                list($batchAdded, $batchUpdated) = $this->configureAcls($output, $admin, $objectIdIterator, $securityIdentity);
                 $countAdded += $batchAdded;
                 $countUpdated += $batchUpdated;
             }

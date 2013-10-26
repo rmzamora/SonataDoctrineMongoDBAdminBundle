@@ -30,6 +30,8 @@ class ModelManager implements ModelManagerInterface
 {
     protected $documentManager;
 
+    const ID_SEPARATOR = '-';
+
     /**
      *
      * @param \Doctrine\ODM\MongoDB\DocumentManager $documentManager
@@ -69,8 +71,8 @@ class ModelManager implements ModelManagerInterface
 
         foreach ($nameElements as $nameElement) {
             $metadata = $this->getMetadata($class);
-            $parentAssociationMappings[] = $metadata->fieldMappings[$nameElement];
-            $class = $metadata->fieldMappings[$nameElement]['targetDocument'];
+            $parentAssociationMappings[] = $metadata->associationMappings[$nameElement];
+            $class = $metadata->getAssociationTargetClass($nameElement);
         }
 
         return array($this->getMetadata($class), $lastPropertyName, $parentAssociationMappings);
@@ -93,6 +95,14 @@ class ModelManager implements ModelManagerInterface
             throw new \RunTimeException('The name argument must be a string');
         }
 
+        if (!isset($options['route']['name'])) {
+            $options['route']['name'] = 'edit';
+        }
+
+        if (!isset($options['route']['parameters'])) {
+            $options['route']['parameters'] = array();
+        }
+
         list($metadata, $propertyName, $parentAssociationMappings) = $this->getParentMetadataForProperty($class, $name);
 
         $fieldDescription = new FieldDescription;
@@ -100,9 +110,12 @@ class ModelManager implements ModelManagerInterface
         $fieldDescription->setOptions($options);
         $fieldDescription->setParentAssociationMappings($parentAssociationMappings);
 
-        if ($metadata->hasAssociation($propertyName)) {
-            $fieldDescription->setAssociationMapping($metadata->fieldMappings[$propertyName]);
-        } elseif (isset($metadata->fieldMappings[$propertyName])) {
+        /** @var ClassMetadata */
+        if (isset($metadata->associationMappings[$propertyName])) {
+            $fieldDescription->setAssociationMapping($metadata->associationMappings[$propertyName]);
+        }
+
+        if (isset($metadata->fieldMappings[$propertyName])) {
             $fieldDescription->setFieldMapping($metadata->fieldMappings[$propertyName]);
         }
 
@@ -141,6 +154,10 @@ class ModelManager implements ModelManagerInterface
      */
     public function find($class, $id)
     {
+        if (!isset($id)) {
+            return null;
+        }
+
         if (is_numeric($id)) {
 
             $value = $this->documentManager->getRepository($class)->find(intval($id));
@@ -172,7 +189,7 @@ class ModelManager implements ModelManagerInterface
     /**
      * @return DocumentManager
      */
-    public function getEntityManager()
+    public function getDocumentManager()
     {
         return $this->documentManager;
     }
@@ -200,7 +217,7 @@ class ModelManager implements ModelManagerInterface
      */
     public function createQuery($class, $alias = 'o')
     {
-        $repository = $this->getEntityManager()->getRepository($class);
+        $repository = $this->getDocumentManager()->getRepository($class);
 
         return new ProxyQuery($repository->createQueryBuilder());
     }
@@ -251,13 +268,13 @@ class ModelManager implements ModelManagerInterface
         }
 
         // the entities is not managed
-        if (!$document || !$this->getEntityManager()->getUnitOfWork()->isInIdentityMap($document)) {
+        if (!$document || !$this->getDocumentManager()->getUnitOfWork()->isInIdentityMap($document)) {
             return null;
         }
 
         $values = $this->getIdentifierValues($document);
 
-        return implode('-', $values);
+        return implode(self::ID_SEPARATOR, $values);
     }
 
     /**
@@ -282,7 +299,18 @@ class ModelManager implements ModelManagerInterface
      */
     public function batchDelete($class, ProxyQueryInterface $queryProxy)
     {
-        $queryBuilder = $queryProxy->getQueryBuilder()->remove()->getQuery()->execute();
+        /** @var Query $queryBuilder */
+        $queryBuilder = $queryProxy->getQuery();
+
+        $i = 0;
+        foreach ($queryBuilder->execute() as $object) {
+            $this->documentManager->remove($object);
+
+            if ((++$i % 20) == 0) {
+                $this->documentManager->flush();
+                $this->documentManager->clear();
+            }
+        }
 
         $this->documentManager->flush();
         $this->documentManager->clear();
@@ -307,7 +335,7 @@ class ModelManager implements ModelManagerInterface
      */
     public function getExportFields($class)
     {
-        $metadata = $this->getEntityManager($class)->getClassMetadata($class);
+        $metadata = $this->getDocumentManager($class)->getClassMetadata($class);
 
         return $metadata->getFieldNames();
     }
@@ -327,17 +355,17 @@ class ModelManager implements ModelManagerInterface
     {
         $values = $datagrid->getValues();
 
-        if ($fieldDescription->getOption('sortable') == $values['_sort_by']->getName()) {
+        if ($fieldDescription->getName() == $values['_sort_by']->getName() || $values['_sort_by']->getName() === $fieldDescription->getOption('sortable')) {
             if ($values['_sort_order'] == 'ASC') {
                 $values['_sort_order'] = 'DESC';
             } else {
                 $values['_sort_order'] = 'ASC';
             }
-            $values['_sort_by']    = $fieldDescription->getName();
         } else {
             $values['_sort_order'] = 'ASC';
-            $values['_sort_by'] = $fieldDescription->getOption('sortable');
         }
+
+        $values['_sort_by'] = is_string($fieldDescription->getOption('sortable')) ? $fieldDescription->getOption('sortable') :  $fieldDescription->getName();
 
         return array('filter' => $values);
     }
@@ -349,6 +377,7 @@ class ModelManager implements ModelManagerInterface
     {
         $values = $datagrid->getValues();
 
+        $values['_sort_by'] = $values['_sort_by']->getName();
         $values['_page'] = $page;
 
         return array('filter' => $values);
@@ -361,8 +390,9 @@ class ModelManager implements ModelManagerInterface
     {
         return array(
             '_sort_order' => 'ASC',
-            '_sort_by' => $this->getModelIdentifier($class),
-            '_page' => 1
+            '_sort_by'    => $this->getModelIdentifier($class),
+            '_page'       => 1,
+            '_per_page'   => 25,
         );
     }
 
@@ -391,6 +421,7 @@ class ModelManager implements ModelManagerInterface
 
                 $property = $metadata->fieldMappings[$name]['fieldName'];
                 $reflection_property = $metadata->reflFields[$name];
+
             } elseif (array_key_exists($name, $metadata->associationMappings)) {
                 $property = $metadata->associationMappings[$name]['fieldName'];
             } else {
@@ -472,13 +503,5 @@ class ModelManager implements ModelManagerInterface
     public function collectionRemoveElement(&$collection, &$element)
     {
         return $collection->removeElement($element);
-    }
-
-    /**
-     * @return DocumentManager
-     */
-    public function getDocumentManager()
-    {
-        return $this->documentManager;
     }
 }

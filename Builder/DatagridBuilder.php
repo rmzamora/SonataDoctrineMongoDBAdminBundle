@@ -25,26 +25,37 @@ use Symfony\Component\Form\FormFactory;
 
 class DatagridBuilder implements DatagridBuilderInterface
 {
-
     protected $filterFactory;
+
     protected $formFactory;
+
     protected $guesser;
 
     /**
-     * @param \Symfony\Component\Form\FormFactory               $formFactory
-     * @param \Sonata\AdminBundle\Filter\FilterFactoryInterface $filterFactory
-     * @param \Sonata\AdminBundle\Guesser\TypeGuesserInterface  $guesser
+     * Indicates that csrf protection enabled
+     *
+     * @var bool
      */
-    public function __construct(FormFactory $formFactory, FilterFactoryInterface $filterFactory, TypeGuesserInterface $guesser)
+    protected $csrfTokenEnabled;
+
+    /**
+     * @param FormFactory $formFactory
+     * @param FilterFactoryInterface $filterFactory
+     * @param TypeGuesserInterface $guesser
+     * @param bool $csrfTokenEnabled
+     */
+    public function __construct(FormFactory $formFactory, FilterFactoryInterface $filterFactory, TypeGuesserInterface $guesser, $csrfTokenEnabled = true)
     {
-        $this->formFactory = $formFactory;
-        $this->filterFactory = $filterFactory;
-        $this->guesser = $guesser;
+        $this->formFactory      = $formFactory;
+        $this->filterFactory    = $filterFactory;
+        $this->guesser          = $guesser;
+        $this->csrfTokenEnabled = $csrfTokenEnabled;
     }
 
     /**
      * @param  \Sonata\AdminBundle\Admin\AdminInterface            $admin
      * @param  \Sonata\AdminBundle\Admin\FieldDescriptionInterface $fieldDescription
+     *
      * @return void
      */
     public function fixFieldDescription(AdminInterface $admin, FieldDescriptionInterface $fieldDescription)
@@ -57,19 +68,18 @@ class DatagridBuilder implements DatagridBuilderInterface
 
             // set the default field mapping
             if (isset($metadata->fieldMappings[$lastPropertyName])) {
-                $fieldDescription->setOption('field_mapping', $fieldDescription->getOption('field_mapping', $metadata->fieldMappings[$fieldDescription->getName()]));
+                $fieldDescription->setOption('field_mapping', $fieldDescription->getOption('field_mapping', $metadata->fieldMappings[$lastPropertyName]));
             }
 
             // set the default association mapping
             if (isset($metadata->associationMappings[$lastPropertyName])) {
-                $fieldDescription->setOption('association_mapping', $fieldDescription->getOption('association_mapping', $metadata->fieldMappings[$lastPropertyName]));
+                $fieldDescription->setOption('association_mapping', $fieldDescription->getOption('association_mapping', $metadata->associationMappings[$lastPropertyName]));
             }
 
             $fieldDescription->setOption('parent_association_mappings', $fieldDescription->getOption('parent_association_mappings', $parentAssociationMappings));
         }
 
         $fieldDescription->setOption('code', $fieldDescription->getOption('code', $fieldDescription->getName()));
-        $fieldDescription->setOption('label', $fieldDescription->getOption('label', $fieldDescription->getName()));
         $fieldDescription->setOption('name', $fieldDescription->getOption('name', $fieldDescription->getName()));
     }
 
@@ -78,7 +88,8 @@ class DatagridBuilder implements DatagridBuilderInterface
      * @param  null                                                $type
      * @param  \Sonata\AdminBundle\Admin\FieldDescriptionInterface $fieldDescription
      * @param  \Sonata\AdminBundle\Admin\AdminInterface            $admin
-     * @return \Sonata\AdminBundle\Filter\FilterInterface
+     *
+     * @return void
      */
     public function addFilter(DatagridInterface $datagrid, $type = null, FieldDescriptionInterface $fieldDescription, AdminInterface $admin)
     {
@@ -108,14 +119,18 @@ class DatagridBuilder implements DatagridBuilderInterface
         $fieldDescription->mergeOption('field_options', array('required' => false));
         $filter = $this->filterFactory->create($fieldDescription->getName(), $type, $fieldDescription->getOptions());
 
+        if (!$filter->getLabel()) {
+            $filter->setLabel($admin->getLabelTranslatorStrategy()->getLabel($fieldDescription->getName(), 'filter', 'label'));
+        }
+
         $datagrid->addFilter($filter);
 
-        return $datagrid->addFilter($filter);
     }
 
     /**
      * @param  \Sonata\AdminBundle\Admin\AdminInterface       $admin
      * @param  array                                          $values
+     *
      * @return \Sonata\AdminBundle\Datagrid\DatagridInterface
      */
     public function getBaseDatagrid(AdminInterface $admin, array $values = array())
@@ -123,9 +138,13 @@ class DatagridBuilder implements DatagridBuilderInterface
         $pager = new Pager;
         $pager->setCountColumn($admin->getModelManager()->getIdentifierFieldNames($admin->getClass()));
 
-        $formBuilder = $this->formFactory->createNamedBuilder('filter', 'form', array(), array('csrf_protection' => false));
+        $defaultOptions = array();
+        if ($this->csrfTokenEnabled) {
+            $defaultOptions['csrf_protection'] = false;
+        }
+
+        $formBuilder = $this->formFactory->createNamedBuilder('filter', 'form', array(), $defaultOptions);
 
         return new Datagrid($admin->createQuery(), $admin->getList(), $pager, $formBuilder, $values);
     }
-
 }

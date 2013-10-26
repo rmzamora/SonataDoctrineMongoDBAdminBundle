@@ -14,7 +14,7 @@ A filter instance is always linked to a Form Type, there are 3 types available :
 The Form Type configuration is provided by the filter itself. But they can be tweaked in the ``configureDatagridFilters``
 process with the ``add`` method.
 
-The ``add`` method accepts 4 arguments :
+The ``add`` method accepts 5 arguments :
 
   - the field name
   - the filter type     : the filter name
@@ -121,7 +121,7 @@ Callback
 
 To create a custom callback filter, two methods need to be implemented; one to
 define the field type and one to define how to use the field's value. The
-latter shall return wether the filter actually is applied to the queryBuilder
+latter shall return whether the filter actually is applied to the queryBuilder
 or not.
 
 .. code-block:: php
