@@ -1,11 +1,16 @@
 {
-    "name": "sonata-project/doctrine-mongodb-admin-bundle",
+    "name": "rmzamora/doctrine-mongodb-admin-bundle",
     "type": "symfony-bundle",
-    "description": "Symfony Sonata / Integrate Doctrine MongoDB ODM into the SonataAdminBundle",
+    "description": "Fork of Symfony Sonata / Integrate Doctrine MongoDB ODM into the SonataAdminBundle",
     "keywords": ["Admin Generator", "admin", "sonata", "bootstrap", "generator", "Mongo", "MongoDB"],
     "homepage": "http://sonata-project.org/bundles/admin",
     "license": "MIT",
     "authors": [
+        {
+          "name": "Mell M. Zamora",
+          "email": "me@mellzamora.com",
+          "homepage": "http://mellzamora.com"
+        },
         {
             "name": "Kévin Dunglas",
             "email": "dunglas@gmail.com",
@@ -19,7 +24,7 @@
     "require": {
         "doctrine/mongodb-odm-bundle": "3.0.*@dev",
         "doctrine/mongodb-odm": "1.0.*@dev",
-        "rmzamora/admin-bundle": "2.3.*"
+        "rmzamora/admin-bundle": "2.4.*"
     },
     "require-dev": {
         "jmikola/geojson": "~1.0"
@@ -28,12 +33,12 @@
         "sonata-project/admin-bundle-persistency-layer": "1.0.0"
     },
     "autoload": {
-        "psr-0": {"Sonata\\DoctrineMongoDBAdminBundle": ""}
+      "psr-4": { "Sonata\\DoctrineMongoDBAdminBundle\\": "" }
     },
     "target-dir": "Sonata/DoctrineMongoDBAdminBundle",
     "extra": {
         "branch-alias": {
-            "dev-2.3": "2.3.x-dev"
+            "dev-2.4": "2.4.x-dev"
         }
     }
 }
