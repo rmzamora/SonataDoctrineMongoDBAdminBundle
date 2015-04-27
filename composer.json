@@ -35,7 +35,6 @@
     "autoload": {
       "psr-4": { "Sonata\\DoctrineMongoDBAdminBundle\\": "" }
     },
-    "target-dir": "Sonata/DoctrineMongoDBAdminBundle",
     "extra": {
         "branch-alias": {
             "dev-2.4": "2.4.x-dev"
